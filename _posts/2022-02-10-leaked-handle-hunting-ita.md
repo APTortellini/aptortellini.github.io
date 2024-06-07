@@ -10,7 +10,7 @@ author:
 [![tortellino windows](/img/tortellindows.png)](/img/tortellindows.png)
 
 ### TL;DR
-Su Windows, una condizione che può verificarsi è quella in cui processi ad altà integrità (anche noti come processi elevati) o processi SYSTEM possono avere handle a oggetti del kernel come altri processi/thread/token e si trovano successivamente in condizione di generare processi figli a media integrità. Se questi oggetti citati sono privilegiati (ad esempio sono a loro volta processi elevati/SYSTEM) e vengono ereditati dal processo figlio, si verifica una situazione in cui un processo a media integrità detiene un handle a una risorsa privilegiata e, se tale handle viene clonato e adeguatamente sfruttato, ciò può portare a privilege escalation. In questo post vedremo come ricercare in maniera automatizzata tali situazioni e come sfruttarle per elevare i propri privilegi o aggirare misure di sicurezza come UAC.
+Su Windows, una condizione che può verificarsi è quella in cui processi ad alta integrità (anche noti come processi elevati) o processi SYSTEM possono avere handle a oggetti del kernel come altri processi/thread/token e si trovano successivamente in condizione di generare processi figli a media integrità. Se questi oggetti citati sono privilegiati (ad esempio sono a loro volta processi elevati/SYSTEM) e vengono ereditati dal processo figlio, si verifica una situazione in cui un processo a media integrità detiene un handle a una risorsa privilegiata e, se tale handle viene clonato e adeguatamente sfruttato, ciò può portare a privilege escalation. In questo post vedremo come ricercare in maniera automatizzata tali situazioni e come sfruttarle per elevare i propri privilegi o aggirare misure di sicurezza come UAC.
 
 ### Introduzione
 Salute compagni d'armi, qui è di nuovo [last](https://twitter.com/last0x00) a infastidirvi. Ultimamente, insieme ai compagni di sventura degli [Advanced Persistent Tortellini](https://aptw.tf/about), mi sono messo alla ricerca di un tipo particolare vulnerabilità che si può trovare su applicativi per Windows e che raramente viene discusso: i leak di handle privilegiati. Notando l'assenza di risorse che approfondiscano l'argomento, abbiamo deciso di scrivere (in [realtà tradurre](https://aptw.tf/2022/02/10/leaked-handle-hunting.html)) questo post.
@@ -30,7 +30,7 @@ Il processo è abbastanza complesso, gli step che seguiremo saranno i seguenti:
 
 [![ven diagram](/img/handlesven.jpg)](/img/handlesven.jpg)
 
-Chiariamoci, è improbabile trovare questo genere di vulnerabilità su un sistema operativo appena installato (anche se, mai dire mai). Ciononostante, considerata la quantità di programmi di dubbia provenienza che i sysadmin installano e il livello di insicurezza che [i programmi](https://aptw.tf/2021/09/24/armoury-crate-privesc-ita.html) installati [dai manufacturer](https://aptw.tf/2022/01/20/acer-care-center-privesc-ita.html) attualmente mostrano, non è remota la possibilità di trovarne su sistemi in produzione da un pò.
+Chiariamoci, è improbabile trovare questo genere di vulnerabilità su un sistema operativo appena installato (anche se, mai dire mai). Ciononostante, considerata la quantità di programmi di dubbia provenienza che i sysadmin installano e il livello di insicurezza che [i programmi](https://aptw.tf/2021/09/24/armoury-crate-privesc-ita.html) installati [dai manufacturer](https://aptw.tf/2022/01/20/acer-care-center-privesc-ita.html) attualmente mostrano, non è remota la possibilità di trovarne su sistemi in produzione da un po'.
 
 Ora che abbiamo una vaga idea di quello che abbiamo intenzione di fare, ripassiamo i fondamentali.
 
@@ -114,7 +114,7 @@ La struttura in questione presenta una serie di membri che forniscono informazio
 - `ProcessId`: il PID del processo che detiene cui la struttura fa riferimento
 - `Handle`: il valore dell'handle, cioè l'indice nella riga della handle table
 - `Object`: l'indirizzo in kernelspace dell'oggetto cui l'handle fa riferimento
-- `ObjectTypeNumber`: una variabile non documentata di tipo `BYTE` che identifica il tipo di oggetto cui l'handle fa riferimento. Per interpretare questo valore dobbiamo fare un pò di reverse engineering, ma per ora ci basta sapere che gli handle riferiti a processi hanno questo valore settato a `0x7`, quelli riferiti ai thread a `0x8` e quelli riferiti ai token a `0x5`
+- `ObjectTypeNumber`: una variabile non documentata di tipo `BYTE` che identifica il tipo di oggetto cui l'handle fa riferimento. Per interpretare questo valore dobbiamo fare un po' di reverse engineering, ma per ora ci basta sapere che gli handle riferiti a processi hanno questo valore settato a `0x7`, quelli riferiti ai thread a `0x8` e quelli riferiti ai token a `0x5`
 - `GrantedAccess`: il livello di accesso all'oggetto che l'handle garantisce. Si possono richiedere livelli di accesso diversi per ogni oggetto. Per esempio valori ammissibili per i processi sono `PROCESS_ALL_ACCESS`, `PROCESS_CREATE_PROCESS` etc.
 
 Vediamo ora brevemente come chiamare `NtQuerySystemInformation` utilizzando il C++.
